@@ -295,20 +295,26 @@ const handleCheckEmail = async (e) => {
             {view === 'login' && (
               <div className="animate-in fade-in duration-500">
                 {step === 1 && (
-                  <form onSubmit={handleCheckEmail} className="space-y-4">
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-4 text-slate-400 w-5 h-5" />
-                      <input 
-                        type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                        placeholder="correo@institucion.edu"
-                        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:bg-white outline-none transition-all"
-                      />
-                    </div>
-                    <button disabled={loading} className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl flex justify-center items-center group hover:bg-blue-600 transition-all shadow-lg">
-                      {loading ? <Loader2 className="animate-spin" /> : <>Validar Dominio <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1" /></>}
-                    </button>
-                  </form>
-                )}
+  <form onSubmit={handleCheckEmail} className="space-y-4">
+    <div className="relative">
+      <Mail className="absolute left-4 top-4 text-slate-400 w-5 h-5" />
+      <input 
+        type="email"
+        name="email"
+        id="login-email"
+        autoComplete="email"
+        required 
+        value={email} 
+        onChange={e => setEmail(e.target.value)}
+        placeholder="correo@institucion.edu"
+        className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-100 focus:bg-white outline-none transition-all"
+      />
+    </div>
+    <button disabled={loading} className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl flex justify-center items-center group hover:bg-blue-600 transition-all shadow-lg">
+      {loading ? <Loader2 className="animate-spin" /> : <>Validar Dominio <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1" /></>}
+    </button>
+  </form>
+)}
 
                 {step === 1.2 && (
                   <div className="text-center space-y-6 animate-in zoom-in">
