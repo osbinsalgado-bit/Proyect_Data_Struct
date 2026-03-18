@@ -43,7 +43,8 @@ export default function QRGenerator({ lab, inst, pcs, onClose, sedeNombre }) {
               {/* QR (Link a la App) */}
               <div className="bg-white p-3 rounded-3xl border border-slate-100 mb-4 shadow-sm">
                 <QRCodeSVG 
-                    value={`https://sgl-app-unitec.web.app/pc/${pc.id}`} 
+                    // ACTUALIZADO: Cambiado a la URL de Vercel
+                    value={`https://proyectdatastruct.vercel.app/pc/${pc.id}`} 
                     size={110} 
                     level="H"
                 />

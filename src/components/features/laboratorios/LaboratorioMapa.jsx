@@ -14,7 +14,14 @@ import QRGenerator from './QRGenerator';
 
 export default function LaboratorioMapa({ lab, inst, user, onBack, sedeNombre }) {
   const primaryColor = inst?.temaColorPrincipal || '#3b82f6';
-  const isAdmin = user?.rol === 'admin_institucion' || user?.rol === 'coordinador';
+  
+  // 1. DEFINICIÓN DE PERMISOS (Corrigiendo el ReferenceError)
+  const isAdmin = user?.rol === 'admin_institucion';
+  const isCoord = user?.rol === 'coordinador';
+  const isAdminOrCoord = isAdmin || isCoord; // Para imprimir y editar
+  const isDocenteOrTemp = user?.rol === 'docente' || user?.rol === 'temporal';
+
+  const BASE_URL = "https://proyectdatastruct.vercel.app";
 
   const [equipos, setEquipos] = useState([]);
   const [selectedPc, setSelectedPc] = useState(null);
@@ -85,10 +92,16 @@ export default function LaboratorioMapa({ lab, inst, user, onBack, sedeNombre })
             <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{lab.nombre}</h3>
             <p className="text-[9px] font-black text-slate-400 uppercase mt-2 tracking-[0.2em]">Institución: {inst.nombre}</p>
         </div>
-        <button onClick={() => setShowQR(true)} className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3 group hover:bg-slate-100 transition-colors">
-            <Printer size={20} className="text-slate-600" /> 
-            <span className="text-[10px] font-black uppercase tracking-widest">Imprimir Todos</span>
-        </button>
+        
+        {/* SOLO ADMIN Y COORDINADOR VEN ESTE BOTÓN */}
+        {isAdminOrCoord ? (
+          <button onClick={() => setShowQR(true)} className="p-4 bg-slate-50 rounded-2xl flex items-center gap-3 group hover:bg-slate-100 transition-colors">
+              <Printer size={20} className="text-slate-600" /> 
+              <span className="text-[10px] font-black uppercase tracking-widest">Imprimir Todos</span>
+          </button>
+        ) : (
+          <div className="w-[160px]"></div> // Espaciador para mantener el diseño
+        )}
       </div>
 
       <div className="flex-1 bg-slate-50/50 p-12 overflow-auto flex flex-col items-center">
@@ -173,8 +186,8 @@ export default function LaboratorioMapa({ lab, inst, user, onBack, sedeNombre })
                     <div className="p-5 bg-slate-50 rounded-2xl">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Nombre / ID Visual</label>
                         <input 
-                            disabled={!isAdmin}
-                            className="w-full bg-transparent font-black text-xs mt-1 outline-none text-blue-600" 
+                            disabled={!isAdminOrCoord}
+                            className={`w-full bg-transparent font-black text-xs mt-1 outline-none ${isAdminOrCoord ? 'text-blue-600' : 'text-slate-500'}`} 
                             value={selectedPc.nombre || ''} 
                             placeholder="Ej: PC-01-DOC"
                             onChange={e => setSelectedPc({...selectedPc, nombre: e.target.value})} 
@@ -191,42 +204,37 @@ export default function LaboratorioMapa({ lab, inst, user, onBack, sedeNombre })
                     </div>
                 </div>
 
-                {/* QR Único (Solo Admin) */}
-                {isAdmin && (
-                    <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 space-y-4">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-white rounded-2xl shadow-sm">
-                                <QrCode className="text-slate-900" size={24}/>
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-900 uppercase italic">Identificador de Estación</p>
-                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Acceso exclusivo mediante App SGL</p>
-                            </div>
+                {/* QR ÚNICO: Visible para TODOS (Admin, Coord, Docente, Temporal) */}
+                <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 space-y-4">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white rounded-2xl shadow-sm">
+                            <QrCode className="text-slate-900" size={24}/>
                         </div>
-                        
-                        <div className="flex gap-2">
-                            {/* BOTÓN COPIAR URL */}
-                            <button 
-                                onClick={() => {
-                                    const url = `https://sgl-app.web.app/pc/${selectedPc.id}`;
-                                    navigator.clipboard.writeText(url);
-                                    alert("Enlace copiado al portapapeles");
-                                }}
-                                className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-[9px] font-black uppercase hover:bg-slate-900 hover:text-white transition-all"
-                            >
-                                Copiar Enlace
-                            </button>
-
-                            {/* BOTÓN VISUALIZAR QR */}
-                            <button 
-                                onClick={() => setShowSingleQR(selectedPc)}
-                                className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-slate-200"
-                            >
-                                Visualizar QR
-                            </button>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-900 uppercase italic">Identificador de Estación</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Escaneable desde la App SGL</p>
                         </div>
                     </div>
-                )}
+                    
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={() => {
+                                const url = `${BASE_URL}/pc/${selectedPc.id}`;
+                                navigator.clipboard.writeText(url);
+                                alert("Enlace de PC copiado");
+                            }}
+                            className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl text-[9px] font-black uppercase"
+                        >
+                            Copiar Enlace
+                        </button>
+                        <button 
+                            onClick={() => setShowSingleQR(selectedPc)}
+                            className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase shadow-lg"
+                        >
+                            Visualizar QR
+                        </button>
+                    </div>
+                </div>
 
                 {/* Hardware y SO */}
                 <div className="space-y-4">
@@ -365,7 +373,7 @@ export default function LaboratorioMapa({ lab, inst, user, onBack, sedeNombre })
 
                 <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100">
                     <p className="text-[9px] font-bold text-blue-600 uppercase leading-relaxed">
-                        Este QR requiere la App SGL instalada y una cuenta autorizada para visualizar los datos técnicos.
+                        Este QR requiere la App MINS instalada y una cuenta autorizada para visualizar los datos técnicos.
                     </p>
                 </div>
             </div>
