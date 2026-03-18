@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { db, storage, auth } from '../../config/firebase';
+import { db, storage, auth } from '../../../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updatePassword } from 'firebase/auth';
@@ -26,8 +26,20 @@ export default function InstConfigView({ inst, temaColor }) {
     setSaving(false);
   };
 
+  const handleSaveTemas = async () => {
+    try {
+        await updateDoc(doc(db, "instituciones", inst.id), {
+            temaColorPrincipal: form.temaColor,
+            temaInterfaz: form.temaInterfaz
+        });
+        // ESTO cambia el color de toda la página sin recargar
+        document.documentElement.style.setProperty('--primary-color', form.temaColor);
+        alert("Temas aplicados globalmente");
+    } catch (e) { alert(e.message); }
+};
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* CAJITA 1: LOGOTIPO */}
@@ -66,7 +78,7 @@ export default function InstConfigView({ inst, temaColor }) {
                 <input type="color" value={form.temaInterfaz} onChange={e => setForm({...form, temaInterfaz: e.target.value})} className="w-full h-16 rounded-2xl cursor-pointer" />
             </div>
           </div>
-          <button onClick={() => {handleSave('temaColor', form.temaColor); handleSave('temaInterfaz', form.temaInterfaz);}} className="w-full py-4 text-white rounded-2xl font-black text-[10px] uppercase" style={{ backgroundColor: temaColor }}>Aplicar Temas</button>
+          <button onClick={handleSaveTemas} className="w-full py-4 text-white rounded-2xl font-black text-[10px] uppercase" style={{ backgroundColor: temaColor }}>Aplicar Temas</button>
         </div>
 
         {/* CAJITA 3: SEGURIDAD */}

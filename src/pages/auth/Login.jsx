@@ -24,6 +24,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [requestComment, setRequestComment] = useState('');
 
   // Estados de Data
   const [instsEncontradas, setInstsEncontradas] = useState([]);
@@ -52,64 +53,112 @@ export default function Login() {
 const handleCheckEmail = async (e) => {
   e.preventDefault();
   setLoading(true); setError('');
-    
+  const emailLimpio = email.trim().toLowerCase();
+
   try {
-    const dominio = email.split('@')[1];
-    if (!dominio) throw new Error("Email inválido");
+    // 1. Buscamos todos los documentos de usuario que tengan este email
+    const qPerfiles = query(collection(db, "usuarios"), where("email", "==", emailLimpio));
+    const snapPerfiles = await getDocs(qPerfiles);
 
-    // USAR 'array-contains' porque ahora es un arreglo en Firebase
-    const q = query(
-      collection(db, "instituciones"), 
-      where("dominioPermitido", "array-contains", dominio)
-    );
-
-    const snap = await getDocs(q);
-
-      if (snap.empty) {
-        setStep(1.2); // No encontrada -> Sugerir registro
-        setLoading(false);
-        return;
+    if (snapPerfiles.empty) {
+      // Si no tiene perfil, intentamos buscar por dominio (para nuevos registros/solicitudes)
+      const dominio = emailLimpio.split('@')[1];
+      const qInst = query(collection(db, "instituciones"), where("dominioPermitido", "array-contains", dominio));
+      const snapInst = await getDocs(qInst);
+      
+      if (snapInst.empty) { setStep(1.2); setLoading(false); return; }
+      
+      const listaInst = snapInst.docs.map(d => ({ id: d.id, ...d.data() }));
+      setInstsEncontradas(listaInst);
+      setStep(1.5);
+    } else {
+      // 2. SI YA TIENE PERFILES, cargamos las instituciones de esos perfiles
+      const instIds = snapPerfiles.docs.map(d => d.data().institucionId);
+      const listaInst = [];
+      
+      for (const id of instIds) {
+        const instDoc = await getDoc(doc(db, "instituciones", id));
+        if (instDoc.exists()) listaInst.push({ id: instDoc.id, ...instDoc.data() });
       }
-
-      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setInstsEncontradas(lista);
-
-      if (lista.length > 1) {
-        setStep(1.5);
-      } else {
-        handleSelectInstitucion(lista[0]);
-      }
-    } catch (err) {
-      setError("Error al buscar institución. Verifica tu conexión.");
-    } finally {
-      setLoading(false);
+      
+      setInstsEncontradas(listaInst);
+      setStep(1.5); // Mostramos el selector de logos
     }
-  };
+  } catch (err) {
+    setError("Error de conexión.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleSelectInstitucion = async (inst) => {
-    setLoading(true); setInstSeleccionada(inst);
-    try {
-      const qUser = query(collection(db, "usuarios"), where("email", "==", email), where("institucionId", "==", inst.id));
-      const userSnap = await getDocs(qUser);
-      if (!userSnap.empty) setUserProfile({ id: userSnap.docs[0].id, ...userSnap.docs[0].data() });
-      else setUserProfile(null);
-      setStep(2);
-    } catch (err) { setError("Error al validar perfil."); }
-    finally { setLoading(false); }
-  };
+  setLoading(true); 
+  setInstSeleccionada(inst);
+
+  localStorage.setItem('institucionActualId', inst.id);
+  
+  const emailLimpio = email.trim().toLowerCase();
+
+  try {
+    // Buscamos el perfil que coincida con el email Y la institución seleccionada
+    const qUser = query(
+      collection(db, "usuarios"), 
+      where("email", "==", emailLimpio), 
+      where("institucionId", "==", inst.id)
+    );
+    const userSnap = await getDocs(qUser);
+    
+    if (!userSnap.empty) {
+      // Guardamos TODO el documento, incluyendo el ID real (que puede ser uid_instId)
+      setUserProfile({ id: userSnap.docs[0].id, ...userSnap.docs[0].data() });
+      setStep(2); // Pasamos a la contraseña
+    } else {
+      setError("No se encontró un perfil para esta institución.");
+    }
+  } catch (err) { 
+    setError("Error al validar perfil."); 
+  } finally { 
+    setLoading(false); 
+  }
+};
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      await updateDoc(doc(db, "usuarios", cred.user.uid), { fechaUltimoAcceso: serverTimestamp() });
-      
-      if (userProfile?.rol === "admin_institucion") window.location.href = "/admin-dashboard";
-      else handleCheckSedes(userProfile?.sedesAsignadas);
-    } catch (err) { setError("Credenciales incorrectas."); }
-    finally { setLoading(false); }
-  };
+  e.preventDefault();
+  setLoading(true); 
+  setError('');
+  const emailLimpio = email.trim().toLowerCase();
+
+  try {
+    // 1. Autenticación en Firebase Auth (Cuenta única)
+    const cred = await signInWithEmailAndPassword(auth, emailLimpio, password);
+    
+    // 2. Actualizar último acceso usando el ID del perfil que seleccionamos
+    // Esto es clave porque el ID ahora es "uid_instId"
+    if (userProfile && userProfile.id) {
+      const userRef = doc(db, "usuarios", userProfile.id);
+      await updateDoc(userRef, { 
+        fechaUltimoAcceso: serverTimestamp() 
+      });
+    }
+    
+    // 3. Redirección según el rol del perfil seleccionado
+    if (userProfile?.rol === "admin_institucion") {
+      window.location.href = "/admin-dashboard";
+    } else {
+      handleCheckSedes(userProfile?.sedesAsignadas);
+    }
+
+  } catch (err) { 
+    console.error("Login Error:", err.code);
+    if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+      setError("Contraseña incorrecta.");
+    } else {
+      setError("Error de autenticación. Intenta de nuevo.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleCheckSedes = async (idsSedes) => {
     if (!idsSedes || idsSedes.length === 0) {
@@ -130,49 +179,52 @@ const handleCheckEmail = async (e) => {
   };
 
   const handleRequestAccess = async () => {
-    setLoading(true);
+    if (!requestComment.trim()) {
+      setError("Por favor, agrega un comentario.");
+      return;
+    }
+    setLoading(true); setError('');
     try {
-      // Obtener el email del coordinador de la institución
-      const coordinadorQ = query(
+      // Buscar todos los admins y coordinadores de la institución
+      const staffQ = query(
         collection(db, "usuarios"),
         where("institucionId", "==", instSeleccionada.id),
-        where("rol", "==", "coordinador")
+        where("rol", "in", ["admin_institucion", "coordinador"])
       );
-      const coordinadorSnap = await getDocs(coordinadorQ);
-      
-      if (coordinadorSnap.empty) {
-        setError("No hay coordinador asignado a esta institución.");
-        setLoading(false);
-        return;
-      }
+      const staffSnap = await getDocs(staffQ);
+      const emailsDestino = staffSnap.docs.map(doc => doc.data().email);
 
-      const coordinadorEmail = coordinadorSnap.docs[0].data().email;
-
-      // Crear solicitud en Firestore
+      // Guardar solicitud en Firestore
       await addDoc(collection(db, "solicitudes"), {
         email,
+        comentario: requestComment,
         institucionId: instSeleccionada.id,
         status: "pendiente",
-        fechaSolicitud: serverTimestamp()
+        fechaSolicitud: serverTimestamp(),
+        nombreInstitucion: instSeleccionada.nombre
       });
 
-      // Enviar email al coordinador
-      await sendBrandedEmail(
-        coordinadorEmail, 
-        `Nueva Solicitud de Acceso - ${instSeleccionada.nombre}`, 
-        instSeleccionada, 
-        `<p>Un nuevo usuario con el correo <b>${email}</b> ha solicitado acceso a tus laboratorios.</p>
-         <p>Por favor, ingresa al panel para aprobar o rechazar la solicitud.</p>`
-      );
-
+      // Enviar correos si existen destinatarios
+      if (emailsDestino.length > 0) {
+        for (const staffEmail of emailsDestino) {
+          await sendBrandedEmail(
+            staffEmail, 
+            `Nueva Solicitud de Acceso - ${instSeleccionada.nombre}`, 
+            instSeleccionada, 
+            `<p>El usuario <b>${email}</b> solicita acceso.</p>
+             <p><b>Comentario:</b> "${requestComment}"</p>`
+          );
+        }
+      }
       setSolicitudEnviada(true);
-      setSuccessMsg("Solicitud enviada correctamente. El coordinador reviará tu acceso pronto.");
-    } catch (err) {
-      setError("No se pudo enviar la solicitud.");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+      setSuccessMsg("Solicitud enviada correctamente.");
+    } catch (err) { setError("Error al procesar la solicitud."); }
+    finally { setLoading(false); }
+  };
+
+  const entrarASede = (sedeId) => {
+    localStorage.setItem('sedeActualId', sedeId);
+    window.location.href = "../coordinador/CoordinadorDashboard"; // O la ruta de tu Dashboard de Coordinador
   };
 
   return (
@@ -189,7 +241,7 @@ const handleCheckEmail = async (e) => {
             <div className="bg-white/20 w-12 h-12 rounded-xl flex items-center justify-center mb-6">
               <Building2 className="w-6 h-6" />
             </div>
-            <h2 className="text-4xl font-black mb-4 leading-tight text-white">
+            <h2 className="text-xl font-black mb-4 leading-tight text-white">
               Lleva tus laboratorios al <span className="text-blue-200 underline decoration-blue-400">siguiente nivel.</span>
             </h2>
             <p className="text-blue-100 text-lg mb-12">MINS – Multi-Institution Network System es la plataforma SaaS líder para instituciones educativas modernas.</p>
@@ -363,11 +415,35 @@ const handleCheckEmail = async (e) => {
                             <p className="text-[11px] text-emerald-700 mt-2">Tu acceso está siendo revisado por el coordinador.</p>
                           </div>
                         ) : (
-                          <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100">
-                            <p className="text-sm text-blue-800 font-medium mb-4">Correo no registrado en esta institución.</p>
-                            <button onClick={handleRequestAccess} disabled={loading} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl flex justify-center items-center shadow-lg hover:bg-blue-700">
-                              {loading ? <Loader2 className="animate-spin" /> : <><UserPlus className="mr-2 w-5 h-5" /> Solicitar Acceso</>}
-                            </button>
+                          <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 animate-in fade-in text-left">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                                <UserPlus size={18} />
+                              </div>
+                              <h3 className="font-black text-blue-900 text-sm uppercase tracking-tight">Solicitar Acceso</h3>
+                            </div>
+                            <p className="text-[11px] text-blue-700 font-bold mb-4 leading-relaxed">Tu correo no está registrado en <b>{instSeleccionada.nombre}</b>.</p>
+                            <div className="space-y-3">
+                              <label className="text-[10px] font-black text-slate-400 uppercase ml-2 italic">Comentario (Obligatorio)</label>
+                              <textarea 
+                                required 
+                                value={requestComment} 
+                                onChange={(e) => setRequestComment(e.target.value)} 
+                                placeholder="Motivo de tu solicitud..." 
+                                className="w-full p-4 bg-white border border-blue-100 rounded-2xl text-xs min-h-[100px] outline-none font-medium resize-none" 
+                              />
+                              <button 
+                                onClick={handleRequestAccess} 
+                                disabled={loading || !requestComment.trim()} 
+                                className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg flex justify-center items-center ${
+                                  !requestComment.trim() 
+                                  ? 'bg-slate-200 text-slate-400' 
+                                  : 'bg-blue-600 text-white'
+                                }`}
+                              >
+                                {loading ? <Loader2 className="animate-spin" /> : "Enviar Solicitud"}
+                              </button>
+                            </div>
                           </div>
                         )}
                         <button onClick={() => setStep(1)} className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600">Cambiar Correo</button>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Clock, Trash2, User } from 'lucide-react';
-import { db } from '../../config/firebase';
+import { db } from '../../../config/firebase';
 import { collection, query, where, onSnapshot, doc, deleteDoc } from 'firebase/firestore';
 
 export default function ActiveUsersView({ institucionId, sedeId }) {
@@ -14,9 +14,9 @@ export default function ActiveUsersView({ institucionId, sedeId }) {
     });
   }, [institucionId, sedeId]);
 
-  const getRestante = (expiresAt) => {
-    if (!expiresAt) return <span className="text-blue-600 font-black">PERMANENTE</span>;
-    const diff = expiresAt.toDate() - new Date();
+  const getRestante = (expiraEn) => {
+    if (!expiraEn) return <span className="text-blue-600 font-black">PERMANENTE</span>;
+    const diff = expiraEn.toDate() - new Date();
     if (diff <= 0) return <span className="text-red-500 font-black">EXPIRADO</span>;
     const horas = Math.floor(diff / (1000 * 60 * 60));
     return <span className="text-amber-600">{horas}h restantes</span>;
@@ -49,7 +49,7 @@ export default function ActiveUsersView({ institucionId, sedeId }) {
                   {u.rol}
                 </span>
               </td>
-              <td className="p-4 font-bold">{getRestante(u.expiresAt)}</td>
+              <td className="p-4 font-bold">{getRestante(u.expiraEn)}</td>
               <td className="p-4 text-right">
                 <button onClick={() => deleteDoc(doc(db, "usuarios", u.id))} className="text-slate-300 hover:text-red-500 transition-all"><Trash2 size={16}/></button>
               </td>

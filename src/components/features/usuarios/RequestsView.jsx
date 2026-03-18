@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Mail, Clock, ShieldCheck, X, Loader2, CheckCircle } from 'lucide-react';
-import { db } from '../../config/firebase';
+import { db } from '../../../config/firebase';
 import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc, Timestamp, addDoc, getDoc } from 'firebase/firestore';
 
 export default function RequestsView({ institucionId, sedeId }) {

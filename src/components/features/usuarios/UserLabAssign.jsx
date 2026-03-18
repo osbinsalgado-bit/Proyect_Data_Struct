@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Monitor, Plus, Settings } from 'lucide-react';
-import { db } from '../../config/firebase';
+import { db } from '../../../config/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
-export default function LabsView({ institucionId, sedeId }) {
+export default function UserLabAssing({ institucionId, sedeId }) {
   const [labs, setLabs] = useState([]);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function LabsView({ institucionId, sedeId }) {
               <Monitor size={24} />
             </div>
             <h4 className="font-bold text-slate-800 text-lg">{lab.nombre}</h4>
-            <p className="text-sm text-slate-400 font-medium">Capacidad: {lab.filasGrid * lab.columnasGrid} Equipos</p>
+            <p className="text-sm text-slate-400 font-medium">Capacidad: {lab.filas * lab.columnas} Equipos</p>
             <button className="mt-4 w-full py-2 bg-slate-50 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-100 flex justify-center items-center">
               <Settings size={14} className="mr-2" /> Gestionar Mapa
             </button>
